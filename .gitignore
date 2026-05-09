@@ -6,7 +6,6 @@ node_modules/
 out/
 
 # Database
-prisma/db/*.db
 prisma/db/*.db-journal
 
 # Environment
