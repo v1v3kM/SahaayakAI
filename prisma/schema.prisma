@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Reporter {
+  id               String   @id @default(cuid())
+  name             String
+  phone            String   @unique
+  email            String?
+  aadhaarHash      String?  // Hashed Aadhaar for identity verification
+  avatar           String?  // Emoji avatar
+  credibilityScore Int      @default(100)
+  totalReports     Int      @default(0)
+  verifiedReports  Int      @default(0)
+  fakeReports      Int      @default(0)
+  pendingReports   Int      @default(0)
+  role             String   @default("citizen") // citizen, authority, admin
+  department       String?  // For authority users
+  badges           String   @default("[]") // JSON array of badge strings
+  isRateLimited    Boolean  @default(false)
+  lastReportAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  incidents     Incident[]
+  verifications Verification[]
+  factCheckVotes FactCheckVote[]
+}
+
+model Incident {
+  id                 String   @id @default(cuid())
+  reporterId         String?
+  type               String   // flood, building_collapse, fire, landslide, waterlogging, traffic_disaster, cyclone, other
+  title              String
+  description        String
+  location           String
+  area               String   // Area/locality name
+  latitude           Float?   // GPS latitude
+  longitude          Float?   // GPS longitude
+  severity           String   // low, moderate, high, critical
+  status             String   @default("active") // active, verified, fake, resolved, monitoring
+  verificationStatus String   @default("pending") // pending, genuine, fake, under_review
+  imageUrl           String?
+  alertsGenerated    Int      @default(0)
+  resourcesAllocated Int      @default(0)
+  affectedPopulation String?
+  agentAnalysis      String?  // JSON string of agent analysis
+  aiFakeScore        Float    @default(0) // 0-1, higher = more likely fake
+  credibilityAtReport Int     @default(100) // Reporter's credibility at time of report
+  priorityScore      Float    @default(0.5) // Calculated from severity + credibility + aiFakeScore
+  resolvedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  reporter   Reporter?       @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+  verifications       Verification[]
+  resourceDeployments ResourceDeployment[]
+  alerts              Alert[]
+  factCheckVotes      FactCheckVote[]
+}
+
+model Verification {
+  id          String   @id @default(cuid())
+  incidentId  String
+  verifierId  String   // Reporter who verified
+  verifierRole String  // authority, admin, ai_system
+  status      String   // genuine, fake, under_review
+  notes       String?
+  aiAnalysis  String?  // AI-generated analysis for the verification
+  createdAt   DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  verifier Reporter @relation(fields: [verifierId], references: [id], onDelete: Cascade)
+}
+
+model ResourceDeployment {
+  id           String   @id @default(cuid())
+  incidentId   String
+  resourceType String   // ambulance, rescue_team, fire_brigade, supply_truck, engineer_team, volunteer
+  quantity     Int
+  status       String   @default("deployed") // deployed, in_transit, arrived, recalled
+  eta          Int?     // Estimated arrival time in minutes
+  deployedBy   String?
+  createdAt    DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+}
+
+model FactCheckVote {
+  id          String   @id @default(cuid())
+  incidentId  String
+  verifierId  String   // Reporter who voted
+  vote        String   // genuine, fake
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  verifier Reporter @relation(fields: [verifierId], references: [id], onDelete: Cascade)
+}
+
+model AgentLog {
+  id         String   @id @default(cuid())
+  agentType  String   // report_intake, situation_assessment, resource_allocation, communication, coordination, fake_detector
+  action     String
+  details    String
+  incidentId String?
+  createdAt  DateTime @default(now())
+}
+
+model Alert {
+  id         String   @id @default(cuid())
+  incidentId String
+  language   String   // en, hi, mr
+  type       String   // public_advisory, emergency_alert, media_brief
+  content    String
+  createdAt  DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+}
+
+model SystemAnalytics {
+  id                  String   @id @default(cuid())
+  date                String   @unique // YYYY-MM-DD
+  totalIncidents      Int      @default(0)
+  verifiedIncidents   Int      @default(0)
+  fakeIncidents       Int      @default(0)
+  avgResponseTime     Float    @default(0) // minutes
+  avgCredibilityScore Float    @default(100)
+  alertsGenerated     Int      @default(0)
+  resourcesDeployed   Int      @default(0)
+  createdAt           DateTime @default(now())
+}
